@@ -223,7 +223,7 @@ class SmallBtn extends StatelessWidget {
   Widget build(BuildContext context) => OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
-          primary: danger ? Colors.red : null,
+          foregroundColor: danger ? Colors.red : null,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           minimumSize: const Size(0, 30),
         ),
