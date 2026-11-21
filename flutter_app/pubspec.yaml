@@ -31,7 +31,10 @@ dependencies:
     sdk: flutter
   ffi: ^2.0.0
   # media_kit 需要 Flutter >= 3.7（当前验证环境为 3.0，见 README）。
-  # 面向目标环境（Flutter 3.7+）时取消下面两行注释：
+  # CI（build-flutter workflow）会自动替换为以下三个依赖：
+  #   media_kit（核心）、media_kit_libs_video（含 Windows 原生库）、media_kit_video（渲染）。
+  # 注意 Windows 原生库是 media_kit_libs_video，不存在 media_kit_libs_windows 这个包。
+  # 下面两行是本地开关，保留注释以确保 Flutter 3.0 环境可 analyze：
   # media_kit: ^1.2.6
   # media_kit_video: ^2.0.1
 

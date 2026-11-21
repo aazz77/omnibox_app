@@ -1,12 +1,12 @@
 name: Build Flutter Desktop
 
 on:
+  # 依赖 build-rust 成功后自动触发
+  workflow_run:
+    workflows: ["Build Rust Core"]
+    types: [completed]
+  # 也支持手动触发（需 core-latest Release 已存在）
   workflow_dispatch:
-  push:
-    branches: [main, master]
-    paths:
-      - 'flutter_app/**'
-      - '.github/workflows/build-flutter.yml'
 
 permissions:
   contents: write
@@ -59,8 +59,10 @@ jobs:
           $p = 'flutter_app/pubspec.yaml'
           $s = Get-Content $p -Raw
           $s = $s.Replace('>=2.17.0 <3.0.0', '>=3.0.0 <4.0.0')
+          # 注意：Windows 原生库由 media_kit_libs_video 提供，
+          # 不存在 media_kit_libs_windows 这个包（会导致 version solving failed）。
           $s = $s.Replace('  # media_kit: ^1.2.6',
-                          "  media_kit: ^1.2.6${nl}  media_kit_libs_windows: ^1.0.0")
+                          "  media_kit: ^1.2.6${nl}  media_kit_libs_video: ^1.0.7")
           $s = $s.Replace('  # media_kit_video: ^2.0.1', '  media_kit_video: ^2.0.1')
           Set-Content $p $s -NoNewline
 
@@ -74,6 +76,17 @@ jobs:
                   "import '../player/media_player.dart';",
                   "import '../player/media_player_mpv.dart';")
           Set-Content $d $ds -NoNewline
+
+          # 4) main.dart 初始化 media_kit（>=1.1 必须在 runApp 前调用，否则运行时崩溃）
+          $m = 'flutter_app/lib/main.dart'
+          $ms = Get-Content $m -Raw
+          $ms = $ms.Replace(
+                  "import 'package:flutter/material.dart';",
+                  "import 'package:flutter/material.dart';${nl}import 'package:media_kit/media_kit.dart';")
+          $ms = $ms.Replace(
+                  'WidgetsFlutterBinding.ensureInitialized();',
+                  "WidgetsFlutterBinding.ensureInitialized();${nl}  MediaKit.ensureInitialized();")
+          Set-Content $m $ms -NoNewline
 
           Write-Host "media_kit 已启用"
           Select-String -Path $p -Pattern 'media_kit|sdk:' | ForEach-Object { $_.Line }
