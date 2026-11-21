@@ -1,0 +1,80 @@
+// media_kit 播放器封装（基于 libmpv）。
+// 目标环境：Flutter >= 3.7 + media_kit ^1.2.x / media_kit_video ^2.x。
+// 当前验证环境 Flutter 3.0 无法安装 media_kit，故此文件在本地 analyze 会报"找不到包"，
+// 属已知环境限制；在目标环境 pub get 后即可正常编译。
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+
+/// 用 media_kit 播放一个 URL，可携带自定义 HTTP header（UA/Referer/Origin）。
+/// play() 返回的 header 是 Map<String, dynamic>，转成 Map<String, String> 传给 Media。
+class MpvPlayer extends StatefulWidget {
+  final String url;
+  final Map<String, dynamic> headers;
+  final VoidCallback? onError;
+  MpvPlayer({required this.url, required this.headers, this.onError, Key? key}) : super(key: key);
+
+  @override
+  State<MpvPlayer> createState() => _MpvPlayerState();
+}
+
+class _MpvPlayerState extends State<MpvPlayer> {
+  late final Player _player;
+  late final VideoController _controller;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _player = Player();
+    _controller = VideoController(_player);
+    _open();
+  }
+
+  void _open() {
+    final h = <String, String>{};
+    widget.headers.forEach((k, v) => h[k.toString()] = v.toString());
+    final media = Media(widget.url, httpHeaders: h);
+    _player.open(media, play: true).catchError((e) {
+      if (mounted) setState(() => _error = e.toString());
+      widget.onError?.call();
+    });
+    _player.stream.error.listen((e) {
+      if (mounted) setState(() => _error = e);
+      widget.onError?.call();
+    });
+  }
+
+  @override
+  void didUpdateWidget(MpvPlayer old) {
+    super.didUpdateWidget(old);
+    if (old.url != widget.url) {
+      setState(() => _error = null);
+      _open();
+    }
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.play_circle_outline, size: 48, color: Colors.grey),
+          const SizedBox(height: 8),
+          Text('播放失败: $_error', textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          ElevatedButton(onPressed: () { setState(() => _error = null); _open(); }, child: const Text('重试')),
+        ]),
+      ));
+    }
+    return Container(color: Colors.black, child: Video(controller: _controller));
+  }
+}

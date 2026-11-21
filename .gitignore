@@ -1,0 +1,6 @@
+rust_core/target/
+flutter_app/.dart_tool/
+flutter_app/build/
+flutter_app/.flutter-plugins*
+flutter_app/pubspec.lock
+*.log

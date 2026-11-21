@@ -1,0 +1,27 @@
+[package]
+name = "omnibox_core"
+version = "0.1.0"
+edition = "2021"
+description = "OmniBox 桌面版 Rust 内核（cdylib，供 Flutter 通过 FFI 调用）"
+
+[lib]
+name = "omnibox_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+base64 = "0.22"
+urlencoding = "2"
+anyhow = "1"
+futures = "0.3"
+rquickjs = { version = "0.14", features = ["full-async", "parallel"] }
+
+[profile.release]
+opt-level = 2
+strip = true
+# cdylib 不能用 panic=abort 跨 FFI 边界（会直接终止宿主进程），改 unwind
+panic = "unwind"
+debug = false

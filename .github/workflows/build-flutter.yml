@@ -1,0 +1,127 @@
+name: Build Flutter Desktop
+
+on:
+  # 依赖 build-rust 成功后自动触发
+  workflow_run:
+    workflows: ["Build Rust Core"]
+    types: [completed]
+  # 也支持手动触发（需 core-latest Release 已存在）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # media_kit 需要 Flutter >= 3.7；这里用较新稳定版以启用真正的 mpv 播放器
+  FLUTTER_VERSION: '3.50.0'
+  DLL_NAME: omnibox_core.dll
+
+jobs:
+  build-app:
+    name: Build omnibox_app.exe (windows-x64)
+    runs-on: windows-latest
+    # workflow_run 仅在 Rust 构建成功时继续；手动触发直接放行
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 检出触发本次运行的那个 commit，手动触发时回退到当前
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # 从 build-rust 发布的 Release 下载 DLL（跨 workflow 中转站）
+      - name: Download core DLL from Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/${{ github.repository }}/releases/download/core-latest/${{ env.DLL_NAME }}"
+          $headers = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
+          Write-Host "下载: $url"
+          Invoke-WebRequest -Uri $url -Headers $headers -OutFile ${{ env.DLL_NAME }}
+          $item = Get-Item ${{ env.DLL_NAME }}
+          Write-Host "DLL: $([math]::Round($item.Length/1MB,2)) MB"
+
+      # 启用 media_kit：放宽 Dart SDK 约束 + 打开依赖注释 + 切换到 mpv 播放器实现
+      - name: Enable media_kit player
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $nl = [Environment]::NewLine
+
+          # 1) pubspec: 放宽 SDK 约束，启用 media_kit 三个依赖
+          $p = 'flutter_app/pubspec.yaml'
+          $s = Get-Content $p -Raw
+          $s = $s.Replace('>=2.17.0 <3.0.0', '>=3.0.0 <4.0.0')
+          $s = $s.Replace('  # media_kit: ^1.2.6',
+                          "  media_kit: ^1.2.6${nl}  media_kit_libs_windows: ^1.0.0")
+          $s = $s.Replace('  # media_kit_video: ^2.0.1', '  media_kit_video: ^2.0.1')
+          Set-Content $p $s -NoNewline
+
+          # 2) 恢复 mpv 播放器源文件（仓库中为 .txt 以避开 Flutter 3.0 本地分析）
+          Copy-Item 'flutter_app/lib/player/media_player_mpv.dart.txt' `
+                    'flutter_app/lib/player/media_player_mpv.dart'
+
+          # 3) detail.dart 切换到 mpv 实现
+          $d = 'flutter_app/lib/pages/detail.dart'
+          $ds = (Get-Content $d -Raw).Replace(
+                  "import '../player/media_player.dart';",
+                  "import '../player/media_player_mpv.dart';")
+          Set-Content $d $ds -NoNewline
+
+          Write-Host "media_kit 已启用"
+          Select-String -Path $p -Pattern 'media_kit|sdk:' | ForEach-Object { $_.Line }
+
+      - name: Flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Build Windows release
+        working-directory: flutter_app
+        run: flutter build windows --release
+
+      # 把 DLL 放到 omnibox_app.exe 同目录（FFI defaultPath 从 exe 目录加载）
+      - name: Bundle DLL next to exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem -Path 'flutter_app/build/windows' -Filter 'omnibox_app.exe' -Recurse |
+                 Select-Object -First 1
+          if (-not $exe) { throw "未找到 omnibox_app.exe" }
+          $relDir = $exe.Directory.FullName
+          Copy-Item -Force ${{ env.DLL_NAME }} (Join-Path $relDir '${{ env.DLL_NAME }}')
+          Write-Host "Release 目录: $relDir"
+          Get-ChildItem $relDir | Select-Object Name, Length
+
+      - name: Package release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem -Path 'flutter_app/build/windows' -Filter 'omnibox_app.exe' -Recurse |
+                 Select-Object -First 1
+          $relDir = $exe.Directory.FullName
+          Compress-Archive -Path (Join-Path $relDir '*') -DestinationPath 'omnibox-windows-x64.zip' -Force
+          $item = Get-Item 'omnibox-windows-x64.zip'
+          Write-Host "打包完成: $([math]::Round($item.Length/1MB,2)) MB"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnibox-windows-x64
+          path: omnibox-windows-x64.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: "Publish app to Release (tag: app-latest)"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-latest
+          prerelease: true
+          overwrite_files: true
+          files: omnibox-windows-x64.zip
