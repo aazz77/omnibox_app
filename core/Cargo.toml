@@ -50,6 +50,8 @@ flate2 = "1"
 # Android 目标 rquickjs-sys 未预置 bindings，需现场用 bindgen 生成（CI 的 ubuntu 自带 libclang，cargo-ndk 会注入 sysroot）
 [target.'cfg(target_os = "android")'.dependencies]
 rquickjs = { version = "0.14", features = ["bindgen"] }
+# JNI 桥（供 Kotlin 端 OmniBoxNative 调用）
+jni = "0.21"
 
 [profile.release]
 opt-level = 2

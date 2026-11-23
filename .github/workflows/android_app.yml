@@ -1,0 +1,96 @@
+name: Build Android App
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-apk:
+    name: omnibox-android-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r27c
+          add-to-path: true
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+          key: android-arm64
+
+      - name: Install cargo-ndk
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk
+
+      - name: Workaround NDK r23+ missing libgcc
+        shell: bash
+        run: |
+          NDK_HOME="${{ steps.ndk.outputs.ndk-path }}"
+          find "${NDK_HOME}" -name "libunwind.a" -print | while read -r f; do
+            dir=$(dirname "$f")
+            echo "INPUT(-lunwind)" > "${dir}/libgcc.a"
+          done
+
+      # 直接把 libomnibox_core.so 输出到 App 的 jniLibs/arm64-v8a/
+      - name: Build Rust core into jniLibs
+        working-directory: core
+        run: |
+          cargo ndk --target arm64-v8a --platform 26 \
+            -o ../app/android/app/src/main/jniLibs \
+            build --release --locked
+          ls -l ../app/android/app/src/main/jniLibs/arm64-v8a
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          cp app/android/app/build/outputs/apk/release/*.apk dist/omnibox-android-arm64.apk
+          ls -l dist
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnibox-android-arm64
+          path: dist/omnibox-android-arm64.apk
+          if-no-files-found: error
+
+      - name: "Publish APK to Release (tag: app-android-latest)"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-android-latest
+          prerelease: true
+          overwrite_files: true
+          files: dist/omnibox-android-arm64.apk

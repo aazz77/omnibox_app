@@ -25,6 +25,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // 未配置正式签名时用 debug 签名，保证 release APK 可直接安装
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

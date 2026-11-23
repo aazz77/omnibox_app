@@ -16,6 +16,8 @@ mod danmu;
 mod douban;
 mod history;
 mod img;
+#[cfg(target_os = "android")]
+mod jni_bridge;
 mod jscrypto;
 mod jsdom;
 mod live;
