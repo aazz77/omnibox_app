@@ -56,29 +56,29 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Copy-Item 'app/lib/pages/file_picker_service.dart.txt' `
-                    'app/lib/pages/file_picker_service.dart' -Force
+          Copy-Item 'app/windows/lib/pages/file_picker_service.dart.txt' `
+                    'app/windows/lib/pages/file_picker_service.dart' -Force
           Write-Host "file_picker 实现已启用"
 
       # 添加 file_picker 依赖：让 pub 自动选择与 Flutter 3.24.5 兼容的版本。
       - name: Add file_picker dependency
-        working-directory: app
+        working-directory: app/windows
         # 10.3.x 需 Dart >=3.4，与 Flutter 3.24.5(Dart 3.5) 匹配；
         # 固定大版本避免 pub 选到需 Dart 3.10 的 13.x 导致解析失败。
         run: flutter pub add "file_picker:^10.3.0"
 
       - name: Flutter pub get
-        working-directory: app
+        working-directory: app/windows
         run: flutter pub get
 
       - name: Build Windows release
-        working-directory: app
+        working-directory: app/windows
         run: flutter build windows --release
 
       # vlc_player 会在 Release 目录打包完整 VLC runtime（plugins/ ~130MB + locale 等）。
       # 精简为 IPTV/本地播放所需插件，把体积压到 ~33MB。
       - name: Strip unused VLC plugins
-        working-directory: app/windows
+        working-directory: app/windows/windows
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File scripts\strip_vlc_plugins.ps1
 
@@ -87,7 +87,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $exe = Get-ChildItem -Path 'app/build/windows' -Filter 'Omnibox.exe' -Recurse |
+          $exe = Get-ChildItem -Path 'app/windows/build/windows' -Filter 'Omnibox.exe' -Recurse |
                  Select-Object -First 1
           if (-not $exe) { throw "未找到 Omnibox.exe" }
           $relDir = $exe.Directory.FullName
@@ -99,7 +99,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $exe = Get-ChildItem -Path 'app/build/windows' -Filter 'Omnibox.exe' -Recurse |
+          $exe = Get-ChildItem -Path 'app/windows/build/windows' -Filter 'Omnibox.exe' -Recurse |
                  Select-Object -First 1
           $relDir = $exe.Directory.FullName
           Compress-Archive -Path (Join-Path $relDir '*') -DestinationPath 'omnibox-windows-x64.zip' -Force
