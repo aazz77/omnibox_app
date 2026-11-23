@@ -3,7 +3,7 @@ name: Build Desktop
 on:
   # 依赖 build-rust 成功后自动触发
   workflow_run:
-    workflows: ["Build Rust Core"]
+    workflows: ["Build Core"]
     types: [completed]
   # 也支持手动触发（需 core-latest Release 已存在）
   workflow_dispatch:
