@@ -28,6 +28,7 @@ jobs:
           add-to-path: true
 
       - uses: Swatinem/rust-cache@v2
+        working-directory: core
         with:
           key: musl-android-arm64
 
@@ -54,13 +55,9 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
 
-      - run: |
-          mkdir -p dist
-          cp core/target/aarch64-linux-android/release/omnibox_core dist/libomnibox_core.so
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: core-latest
           prerelease: true
-          files: dist/libomnibox_core.so
+          files: core/target/aarch64-linux-android/release/*
