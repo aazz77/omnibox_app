@@ -3,6 +3,9 @@ name: Build Android Core
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -29,7 +32,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: musl-android-arm64
+          workspaces: core
+          key: android-arm64
 
       - name: Install cargo-ndk
         uses: taiki-e/install-action@v2
@@ -50,13 +54,16 @@ jobs:
       # aarch64-linux-android (run via iptables TPROXY, e.g. with root).
       - name: Build release (aarch64-android)
         working-directory: core
-        run: cargo ndk --target aarch64-linux-android --platform 24 build --release --locked
+        run: cargo ndk --target aarch64-linux-android --platform 26 build --release --locked
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          # 安卓端优先体积：opt-level=s（Windows 构建不受影响）
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: s
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: core-latest
           prerelease: true
-          files: core/target/aarch64-linux-android/release/*.so
+          overwrite_files: true
+          files: core/target/aarch64-linux-android/release/libomnibox_core.so

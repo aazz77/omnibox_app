@@ -24,7 +24,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 压缩代码 + 资源收缩：material-icons-extended 等大库只保留用到的部分
+            isMinifyEnabled = true
+            isShrinkResources = true
             // 未配置正式签名时用 debug 签名，保证 release APK 可直接安装
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -40,6 +42,36 @@ android {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
+    }
+
+    // 只保留中英文资源，去掉各库自带的其他语言字符串
+    androidResources {
+        localeFilters += listOf("zh", "en")
+    }
+
+    packaging {
+        jniLibs {
+            // 压缩存放 .so，APK 更小（安装后再解压）
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "/META-INF/*.version",
+                "/META-INF/LICENSE*",
+                "/META-INF/NOTICE*",
+                "/META-INF/DEPENDENCIES",
+                "DebugProbesKt.bin",
+                "kotlin-tooling-metadata.json",
+                "/kotlin/**",
+            )
+        }
+    }
+
+    // 去掉 APK 里的依赖元数据块
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     buildFeatures {
