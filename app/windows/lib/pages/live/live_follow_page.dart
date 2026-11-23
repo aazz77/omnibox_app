@@ -1,7 +1,9 @@
 // 直播关注页：作为「直播」tab 的首页，显示左侧导航栏。
 // 顶部搜索框 -> 内部切到搜索视图（LiveSearchView）；下方关注卡片网格 + 平台筛选 + 添加关注。
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../live/live_api.dart';
+import '../file_picker_service.dart';
 import 'live_player_page.dart';
 
 class LiveFollowPage extends StatefulWidget {
@@ -92,10 +94,97 @@ class _LiveFollowPageState extends State<LiveFollowPage> {
     if (ok) _load();
   }
 
+  /// 解析关注列表 JSON 文本并导入（支持数组 / {follows:[...]} / {data:{follows:[...]}}）
+  Future<void> _doImportJson(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('内容不能为空')));
+      return;
+    }
+    dynamic data;
+    try {
+      data = jsonDecode(trimmed);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('JSON 解析失败: $e')));
+      return;
+    }
+    try {
+      final n = await LiveApi.i.followsImport(data);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入成功，新增 $n 个关注')));
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入失败: $e')));
+    }
+  }
+
+  Future<void> _importFromFile() async {
+    final picked = await pickJsonFile();
+    if (picked == null) return;
+    await _doImportJson(picked['source'] ?? '');
+  }
+
+  void _showImportSheet() {
+    final ctrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: MediaQuery.of(ctx).viewInsets.bottom + 16),
+        child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('导入关注列表', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text('支持 JSON 数组或 {"follows":[...]}，字段 platform + roomId 必填，重复自动跳过。',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 12),
+            TextField(controller: ctrl, maxLines: 8, decoration: const InputDecoration(
+              hintText: '[{"platform":"bilibili","roomId":"12345","title":"主播"}]',
+              border: OutlineInputBorder(),
+            )),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () { Navigator.pop(ctx); _doImportJson(ctrl.text); },
+              icon: const Icon(Icons.content_paste),
+              label: const Text('粘贴导入'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () { Navigator.pop(ctx); _importFromFile(); },
+              icon: const Icon(Icons.upload_file),
+              label: const Text('从本地 JSON 文件导入'),
+            ),
+          ],
+        )),
+      ),
+    );
+  }
+
+  Future<void> _exportFollows() async {
+    try {
+      final data = await LiveApi.i.followsExport();
+      final text = const JsonEncoder.withIndent('  ').convert(data);
+      if (!mounted) return;
+      showDialog(context: context, builder: (_) => AlertDialog(
+        title: const Text('导出关注列表'),
+        content: SizedBox(width: 600, height: 420, child: SingleChildScrollView(
+          child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
+        )),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭'))],
+      ));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导出失败: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('直播'), actions: [
+        IconButton(icon: const Icon(Icons.file_download), tooltip: '导出关注列表', onPressed: _exportFollows),
+        IconButton(icon: const Icon(Icons.file_upload), tooltip: '导入关注列表', onPressed: _showImportSheet),
         IconButton(icon: const Icon(Icons.refresh), tooltip: '刷新开播状态', onPressed: _refreshing ? null : _refresh),
       ]),
       body: Column(children: [
@@ -139,6 +228,8 @@ class _LiveFollowPageState extends State<LiveFollowPage> {
             const SizedBox(width: 6),
             _chip('未开播 ${_follows.length - _liveCount}', _filter == 'off', () => setState(() => _filter = 'off')),
             const Spacer(),
+            OutlinedButton.icon(onPressed: _showImportSheet, icon: const Icon(Icons.file_upload, size: 16), label: const Text('导入列表')),
+            const SizedBox(width: 6),
             ElevatedButton.icon(onPressed: _addFollow, icon: const Icon(Icons.add), label: const Text('添加关注')),
           ]),
         ),

@@ -4,7 +4,6 @@ import '../../music/music_api.dart';
 import 'music_home.dart';
 import 'music_list.dart';
 import 'music_player_page.dart';
-import 'music_sources_page.dart';
 
 /// 音乐模块导航根：持有音乐首页，榜单/搜索/播放页用 Navigator push。
 /// 全局播放器跨页面持续播放；底部显示迷你播放条可回到播放页。

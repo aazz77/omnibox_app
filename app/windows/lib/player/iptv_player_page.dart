@@ -12,13 +12,16 @@ import 'package:flutter/services.dart';
 import '../iptv/iptv_sources.dart';
 import '../settings.dart';
 import '../iptv/m3u_parser.dart';
+import '../iptv/builtin_yspl.dart';
 import 'vlc_player.dart';
 
 /// 播放参数（由源管理页点击源卡片时传入）
 class IptvPlayArgs {
   final int sourceIndex;
   final String sourceName;
-  IptvPlayArgs({required this.sourceIndex, required this.sourceName});
+  /// true = 内置央视频源，频道表走 FFI（sourceIndex 无意义）
+  final bool builtin;
+  IptvPlayArgs({required this.sourceIndex, required this.sourceName, this.builtin = false});
 }
 
 class IptvPlayerPage extends StatefulWidget {
@@ -66,7 +69,10 @@ class _IptvPlayerPageState extends State<IptvPlayerPage> {
   Future<void> _loadSource() async {
     setState(() => _loading = true);
     try {
-      final parsed = await IptvStore.i.loadChannels(widget.args.sourceIndex);
+      // 内置央视频源走 FFI；普通源走 IptvStore
+      final parsed = widget.args.builtin
+          ? await BuiltinYspl.i.loadChannels()
+          : await IptvStore.i.loadChannels(widget.args.sourceIndex);
       if (!mounted) return;
       final grouped = M3uParser.groupBy(parsed);
       if (grouped.isEmpty) {

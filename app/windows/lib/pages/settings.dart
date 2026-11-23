@@ -94,6 +94,15 @@ class SettingsPage extends StatelessWidget {
             onChanged: (v) => AppSettings.i.setVlcHwdec(v),
           ),
         ),
+        ValueListenableBuilder<bool>(
+          valueListenable: AppSettings.i.showBuiltinIptv,
+          builder: (context, show, _) => SwitchListTile(
+            title: const Text('显示内置央视频源'),
+            subtitle: const Text('在 iptv 页显示内置「央视频」源（只读，不可编辑删除）；关闭后不再显示'),
+            value: show,
+            onChanged: (v) => AppSettings.i.setShowBuiltinIptv(v),
+          ),
+        ),
         const Divider(height: 32),
 
         // ===== 音乐音质（对齐 lx-server preferredQuality + 智能降级）=====
@@ -128,7 +137,7 @@ class SettingsPage extends StatelessWidget {
         const _LiveSettingsBody(),
         const Divider(height: 32),
 
-        // ===== 弹幕（点播）=====
+        // ===== 弹幕（点播 + 直播共用同一设置项）=====
         ValueListenableBuilder<DanmuConfig>(
           valueListenable: AppSettings.i.danmu,
           builder: (context, cfg, _) => _DanmuSettingsBody(cfg: cfg),
@@ -150,13 +159,26 @@ class _DanmuSettingsBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('弹幕', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
+        const Text('弹幕（点播 + 直播共用）', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        const Text('同一组参数同时作用于点播与直播弹幕；调整实时生效。',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
+
+        // ---- 通用 ----
+        const Padding(padding: EdgeInsets.only(top: 10), child: Text('通用', style: TextStyle(fontSize: 13, color: Colors.indigo))),
         SwitchListTile(
           title: const Text('显示弹幕'),
           value: cfg.open,
           onChanged: (v) => _update(cfg.copyWith(open: v)),
         ),
+        _slider(
+          label: '透明度', value: cfg.alpha, min: 0.1, max: 1.0, divisions: 9,
+          display: cfg.alpha.toStringAsFixed(1),
+          onChanged: (v) => _update(cfg.copyWith(alpha: (v * 10).round() / 10)),
+        ),
+
+        // ---- 点播专属 ----
+        const Padding(padding: EdgeInsets.only(top: 10), child: Text('点播弹幕', style: TextStyle(fontSize: 13, color: Colors.indigo))),
         _slider(
           label: '轨道行数', value: cfg.lines.toDouble(), min: 1, max: 30, divisions: 29,
           display: '${cfg.lines}',
@@ -168,14 +190,9 @@ class _DanmuSettingsBody extends StatelessWidget {
           onChanged: (v) => _update(cfg.copyWith(speed: (v * 10).round() / 10)),
         ),
         _slider(
-          label: '字号', value: cfg.size, min: 0.4, max: 2.4, divisions: 20,
+          label: '字号缩放', value: cfg.size, min: 0.4, max: 2.4, divisions: 20,
           display: cfg.size.toStringAsFixed(1),
           onChanged: (v) => _update(cfg.copyWith(size: (v * 10).round() / 10)),
-        ),
-        _slider(
-          label: '透明度', value: cfg.alpha, min: 0.1, max: 1.0, divisions: 9,
-          display: cfg.alpha.toStringAsFixed(1),
-          onChanged: (v) => _update(cfg.copyWith(alpha: (v * 10).round() / 10)),
         ),
         _slider(
           label: '行间距', value: cfg.spacing.toDouble(), min: 0, max: 32, divisions: 32,
@@ -193,15 +210,64 @@ class _DanmuSettingsBody extends StatelessWidget {
           value: cfg.randomColor,
           onChanged: (v) => _update(cfg.copyWith(randomColor: v)),
         ),
-        const SizedBox(height: 4),
         _ApiBaseField(apiBase: cfg.apiBase, onSaved: (v) => _update(cfg.copyWith(apiBase: v))),
+
+        // ---- 直播专属 ----
+        const Padding(padding: EdgeInsets.only(top: 10), child: Text('直播弹幕', style: TextStyle(fontSize: 13, color: Colors.indigo))),
+        _slider(
+          label: '字号', value: cfg.fontSize.toDouble(), min: 12, max: 48, divisions: 36,
+          display: '${cfg.fontSize}px',
+          onChanged: (v) => _update(cfg.copyWith(fontSize: v.round())),
+        ),
+        _slider(
+          label: '显示区域', value: cfg.area.toDouble(), min: 20, max: 100, divisions: 80,
+          display: '${cfg.area}%',
+          onChanged: (v) => _update(cfg.copyWith(area: v.round())),
+        ),
+        _slider(
+          label: '水平间距', value: cfg.itemGap.toDouble(), min: 0, max: 300, divisions: 30,
+          display: '${cfg.itemGap}px',
+          onChanged: (v) => _update(cfg.copyWith(itemGap: v.round())),
+        ),
+        _slider(
+          label: '滚动时长', value: cfg.duration, min: 2, max: 20, divisions: 18,
+          display: '${cfg.duration.toStringAsFixed(0)}秒/屏',
+          onChanged: (v) => _update(cfg.copyWith(duration: v.round().toDouble())),
+        ),
+        DropdownButtonFormField<String>(
+          value: cfg.colorMode,
+          decoration: const InputDecoration(labelText: '颜色模式', isDense: true),
+          items: const [
+            DropdownMenuItem(value: 'platform', child: Text('跟随平台')),
+            DropdownMenuItem(value: 'rainbow', child: Text('缤纷')),
+            DropdownMenuItem(value: 'white', child: Text('纯白')),
+            DropdownMenuItem(value: 'custom', child: Text('自定义')),
+          ],
+          onChanged: (v) { if (v != null) _update(cfg.copyWith(colorMode: v)); },
+        ),
+        if (cfg.colorMode == 'custom')
+          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [
+            const Text('自定义颜色  '),
+            Container(width: 24, height: 24, color: _hex(cfg.color), decoration: BoxDecoration(border: Border.all(color: Colors.grey))),
+            const SizedBox(width: 8),
+            SizedBox(width: 140, child: TextField(decoration: const InputDecoration(hintText: '#ffffff', isDense: true), controller: TextEditingController(text: cfg.color), onSubmitted: (v) => _update(cfg.copyWith(color: v.trim())))),
+          ])),
+        SwitchListTile(title: const Text('文字加粗'), value: cfg.bold, onChanged: (v) => _update(cfg.copyWith(bold: v))),
+        SwitchListTile(title: const Text('描边阴影'), value: cfg.stroke, onChanged: (v) => _update(cfg.copyWith(stroke: v))),
+        SwitchListTile(title: const Text('显示用户名'), value: cfg.showUser, onChanged: (v) => _update(cfg.copyWith(showUser: v))),
+
         const SizedBox(height: 12),
         const Text(
-          '弹幕需在播放页点右上角「弹幕搜索」按钮选择剧集后加载；参数调整实时生效。',
+          '点播弹幕需在播放页点右上角「弹幕搜索」选择剧集后加载；直播弹幕进入直播播放页自动订阅。',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
       ],
     );
+  }
+
+  Color _hex(String s) {
+    final v = int.tryParse(s.replaceFirst('#', ''), radix: 16);
+    return v == null ? Colors.white : Color(0xff000000 | v);
   }
 
   Widget _slider({
@@ -262,7 +328,7 @@ class _ApiBaseFieldState extends State<_ApiBaseField> {
   }
 }
 
-/// 直播（6 平台聚合）设置：内核 / 解码 / 画质 / 实时弹幕 / 平台 Cookie。
+/// 直播（6 平台聚合）设置：内核 / 解码 / 画质 / 平台 Cookie。弹幕设置见下方共用项。
 /// Cookie 由内核 silm.json 持久化（LiveSettingsGet/Set），其余为本地 ValueNotifier。
 class _LiveSettingsBody extends StatefulWidget {
   const _LiveSettingsBody();
@@ -377,12 +443,7 @@ class _LiveSettingsBodyState extends State<_LiveSettingsBody> {
         ]),
       ),
 
-      // 实时弹幕设置
-      const Padding(padding: EdgeInsets.only(top: 4), child: Text('直播弹幕', style: TextStyle(fontSize: 13, color: Colors.grey))),
-      ValueListenableBuilder<LiveDanmuConfig>(
-        valueListenable: AppSettings.i.liveDanmu,
-        builder: (context, cfg, _) => _LiveDanmuBody(cfg: cfg),
-      ),
+      // 弹幕设置已与点播统一，见下方「弹幕」设置项（点播 + 直播共用）
 
       // Cookie
       const Padding(padding: EdgeInsets.only(top: 12), child: Text('平台 Cookie', style: TextStyle(fontSize: 13, color: Colors.grey))),
@@ -403,55 +464,3 @@ class _LiveSettingsBodyState extends State<_LiveSettingsBody> {
   }
 }
 
-/// 直播实时弹幕参数（对齐 live-server DanmakuSettings）
-class _LiveDanmuBody extends StatelessWidget {
-  final LiveDanmuConfig cfg;
-  const _LiveDanmuBody({required this.cfg});
-  void _u(LiveDanmuConfig c) => AppSettings.i.setLiveDanmu(c);
-  @override
-  Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SwitchListTile(title: const Text('显示直播弹幕'), value: cfg.enabled, onChanged: (v) => _u(cfg.copyWith(enabled: v))),
-      _s('字号', cfg.fontSize.toDouble(), 12, 48, '${cfg.fontSize}px', (v) => _u(cfg.copyWith(fontSize: v.round()))),
-      _s('显示区域', cfg.area.toDouble(), 20, 100, '${cfg.area}%', (v) => _u(cfg.copyWith(area: v.round()))),
-      _s('行间距', cfg.lineGap.toDouble(), 0, 40, '${cfg.lineGap}px', (v) => _u(cfg.copyWith(lineGap: v.round()))),
-      _s('水平间距', cfg.itemGap.toDouble(), 0, 300, '${cfg.itemGap}px', (v) => _u(cfg.copyWith(itemGap: v.round()))),
-      _s('滚动时长', cfg.duration, 2, 20, '${cfg.duration.toStringAsFixed(0)}秒/屏', (v) => _u(cfg.copyWith(duration: v.round().toDouble()))),
-      _s('不透明度', cfg.opacity, 0.2, 1, '${(cfg.opacity * 100).round()}%', (v) => _u(cfg.copyWith(opacity: (v * 10).round() / 10))),
-      DropdownButtonFormField<String>(
-        value: cfg.colorMode,
-        decoration: const InputDecoration(labelText: '颜色模式', isDense: true),
-        items: const [
-          DropdownMenuItem(value: 'platform', child: Text('跟随平台')),
-          DropdownMenuItem(value: 'rainbow', child: Text('缤纷')),
-          DropdownMenuItem(value: 'white', child: Text('纯白')),
-          DropdownMenuItem(value: 'custom', child: Text('自定义')),
-        ],
-        onChanged: (v) { if (v != null) _u(cfg.copyWith(colorMode: v)); },
-      ),
-      if (cfg.colorMode == 'custom')
-        Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [
-          const Text('自定义颜色  '),
-          Container(width: 24, height: 24, color: _hex(cfg.color), decoration: BoxDecoration(border: Border.all(color: Colors.grey))),
-          const SizedBox(width: 8),
-          SizedBox(width: 140, child: TextField(decoration: const InputDecoration(hintText: '#ffffff', isDense: true), controller: TextEditingController(text: cfg.color), onSubmitted: (v) => _u(cfg.copyWith(color: v.trim())))),
-        ])),
-      SwitchListTile(title: const Text('文字加粗'), value: cfg.bold, onChanged: (v) => _u(cfg.copyWith(bold: v))),
-      SwitchListTile(title: const Text('描边阴影'), value: cfg.stroke, onChanged: (v) => _u(cfg.copyWith(stroke: v))),
-      SwitchListTile(title: const Text('显示用户名'), value: cfg.showUser, onChanged: (v) => _u(cfg.copyWith(showUser: v))),
-    ]);
-  }
-  Color _hex(String s) {
-    final v = int.tryParse(s.replaceFirst('#', ''), radix: 16);
-    return v == null ? Colors.white : Color(0xff000000 | v);
-  }
-  Widget _s(String label, double value, double min, double max, String display, ValueChanged<double> onChanged) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: const TextStyle(fontSize: 13)),
-        Text(display, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      ]),
-      Slider(value: value.clamp(min, max), min: min, max: max, onChanged: onChanged),
-    ]);
-  }
-}

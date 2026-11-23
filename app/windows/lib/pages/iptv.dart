@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../iptv/iptv_sources.dart';
 import '../player/iptv_player_page.dart';
+import '../settings.dart';
 import 'file_picker_service.dart';
 
 class IptvPage extends StatefulWidget {
@@ -21,6 +22,14 @@ class _IptvPageState extends State<IptvPage> {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => IptvPlayerPage(
         args: IptvPlayArgs(sourceIndex: index, sourceName: src.name),
+      ),
+    ));
+  }
+
+  void _openBuiltin() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => IptvPlayerPage(
+        args: IptvPlayArgs(sourceIndex: -1, sourceName: '央视频（内置）', builtin: true),
       ),
     ));
   }
@@ -88,7 +97,6 @@ class _IptvPageState extends State<IptvPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final sources = IptvStore.i.sources;
 
     return Scaffold(
       appBar: AppBar(
@@ -106,52 +114,117 @@ class _IptvPageState extends State<IptvPage> {
           const SizedBox(width: 16),
         ],
       ),
-      body: sources.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.live_tv_outlined,
-                      size: 72, color: scheme.onSurfaceVariant.withAlpha(100)),
-                  const SizedBox(height: 16),
-                  const Text('暂无 IPTV 源',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 8),
-                  const Text('点击右上角「导入」按钮添加 M3U 源',
-                      style: TextStyle(fontSize: 13, color: Colors.grey)),
-                ],
-              ),
-            )
-          : Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  const minCardWidth = 280.0;
-                  const spacing = 16.0;
-                  final cols = ((constraints.maxWidth + spacing) /
-                          (minCardWidth + spacing))
-                      .floor()
-                      .clamp(1, 3);
-                  return GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: cols,
-                      crossAxisSpacing: spacing,
-                      mainAxisSpacing: spacing,
-                      childAspectRatio: 3.2,
-                    ),
-                    itemCount: sources.length,
-                    itemBuilder: (_, i) => _SourceCard(
-                      source: sources[i],
-                      refreshing: _refreshing.contains(i),
-                      onTap: () => _openPlayer(i),
-                      onEdit: () => _showEditor(index: i),
-                      onDelete: () => _delete(i),
-                      onRefresh: () => _refresh(i),
-                    ),
-                  );
-                },
-              ),
+      body: ValueListenableBuilder<bool>(
+        valueListenable: AppSettings.i.showBuiltinIptv,
+        builder: (context, showBuiltin, _) => _buildBody(scheme, showBuiltin),
+      ),
+    );
+  }
+
+  Widget _buildBody(ColorScheme scheme, bool showBuiltin) {
+    final sources = IptvStore.i.sources;
+    if (sources.isEmpty && !showBuiltin) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.live_tv_outlined,
+                size: 72, color: scheme.onSurfaceVariant.withAlpha(100)),
+            const SizedBox(height: 16),
+            const Text('暂无 IPTV 源',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            const Text('点击右上角「导入」按钮添加 M3U 源',
+                style: TextStyle(fontSize: 13, color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+    final builtinOffset = showBuiltin ? 1 : 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const minCardWidth = 280.0;
+          const spacing = 16.0;
+          final cols = ((constraints.maxWidth + spacing) /
+                  (minCardWidth + spacing))
+              .floor()
+              .clamp(1, 3);
+          return GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cols,
+              crossAxisSpacing: spacing,
+              mainAxisSpacing: spacing,
+              childAspectRatio: 3.2,
             ),
+            itemCount: sources.length + builtinOffset,
+            itemBuilder: (_, i) {
+              if (showBuiltin && i == 0) {
+                return _BuiltinCard(onTap: _openBuiltin);
+              }
+              final idx = i - builtinOffset;
+              return _SourceCard(
+                source: sources[idx],
+                refreshing: _refreshing.contains(idx),
+                onTap: () => _openPlayer(idx),
+                onEdit: () => _showEditor(index: idx),
+                onDelete: () => _delete(idx),
+                onRefresh: () => _refresh(idx),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 内置央视频源卡片：只读，不可编辑/删除，仅可点击播放。
+class _BuiltinCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BuiltinCard({required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: scheme.tertiary.withAlpha(100)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: scheme.tertiaryContainer.withAlpha(140),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.account_balance, size: 20, color: scheme.tertiary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('央视频', maxLines: 1,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 3),
+                _Badge(label: '内置 · 央视/卫视 64 路', color: scheme.tertiary,
+                    bg: scheme.tertiaryContainer.withAlpha(80)),
+              ],
+            )),
+            const Icon(Icons.chevron_right, size: 18),
+          ]),
+        ),
+      ),
     );
   }
 }

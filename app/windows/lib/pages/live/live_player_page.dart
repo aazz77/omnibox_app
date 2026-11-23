@@ -123,7 +123,7 @@ class _LivePlayerHostState extends State<LivePlayerHost> {
 
   void _startDanmu() {
     _danmuTimer?.cancel();
-    _danmuOn = AppSettings.i.liveDanmu.value.enabled;
+    _danmuOn = AppSettings.i.danmu.value.open;
     if (!_danmuOn) return;
     LiveApi.i.danmuStart(widget.platform, widget.roomId);
     _danmuTimer = Timer.periodic(const Duration(milliseconds: 250), (_) async {

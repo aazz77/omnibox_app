@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../music/music_api.dart';
 
-/// 音乐音源管理页：网络 URL / 本地粘贴导入，单活动源启用，删除，查看源码。
-class MusicSourcesPage extends StatefulWidget {
-  const MusicSourcesPage({Key? key}) : super(key: key);
+/// 音乐音源面板：嵌入「源管理 → 音源」tab。
+/// 网络 URL / 本地粘贴导入，单活动源启用，删除，查看源码。
+class MusicSourcesPane extends StatefulWidget {
+  const MusicSourcesPane({Key? key}) : super(key: key);
   @override
-  State<MusicSourcesPage> createState() => _MusicSourcesPageState();
+  State<MusicSourcesPane> createState() => _MusicSourcesPaneState();
 }
 
-class _MusicSourcesPageState extends State<MusicSourcesPage> {
+class _MusicSourcesPaneState extends State<MusicSourcesPane>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   List<MusicSource> _sources = [];
   bool _loading = true;
 
@@ -67,21 +72,13 @@ class _MusicSourcesPageState extends State<MusicSourcesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('音乐音源管理'),
-        actions: [IconButton(icon: const Icon(Icons.add), tooltip: '导入音源', onPressed: _showImport)],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showImport,
-        icon: const Icon(Icons.add),
-        label: const Text('导入音源'),
-      ),
-      body: _loading
+    super.build(context);
+    return Stack(children: [
+      _loading
           ? const Center(child: CircularProgressIndicator())
           : _sources.isEmpty
               ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.music_off, size: 56, color: Colors.grey.shade300),
+                  Icon(Icons.audiotrack, size: 56, color: Colors.grey.shade300),
                   const SizedBox(height: 12),
                   const Text('尚未导入音源'),
                   const SizedBox(height: 4),
@@ -90,7 +87,7 @@ class _MusicSourcesPageState extends State<MusicSourcesPage> {
                   FilledButton.icon(onPressed: _showImport, icon: const Icon(Icons.add), label: const Text('导入音源')),
                 ]))
               : ListView.builder(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.only(bottom: 80),
                   itemCount: _sources.length,
                   itemBuilder: (context, i) {
                     final s = _sources[i];
@@ -124,7 +121,16 @@ class _MusicSourcesPageState extends State<MusicSourcesPage> {
                     );
                   },
                 ),
-    );
+      Positioned(
+        right: 16,
+        bottom: 16,
+        child: FloatingActionButton(
+          onPressed: _showImport,
+          tooltip: '导入音源',
+          child: const Icon(Icons.add),
+        ),
+      ),
+    ]);
   }
 }
 

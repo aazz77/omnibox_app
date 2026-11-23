@@ -1,5 +1,5 @@
 // 直播实时弹幕层：事件驱动（收到即上屏），按墙钟时间滚动。
-// 数据来自 LiveApi.danmuPoll 轮询；渲染参数来自 AppSettings.i.liveDanmu。
+// 数据来自 LiveApi.danmuPoll 轮询；渲染参数来自共用弹幕设置 AppSettings.i.danmu。
 // 与点播弹幕层（按视频时间排程）完全独立，铺满父容器，需放在 Stack 内。
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -51,14 +51,14 @@ class _LiveDanmuOverlayState extends State<LiveDanmuOverlay> with TickerProvider
   final TextPainter _measure = TextPainter(textDirection: TextDirection.ltr);
   int _colorCursor = 0;
 
-  LiveDanmuConfig get _cfg => AppSettings.i.liveDanmu.value;
+  DanmuConfig get _cfg => AppSettings.i.danmu.value;
 
   @override
   void initState() {
     super.initState();
     widget.incoming.addListener(_onIncoming);
     _ticker = createTicker(_onFrame)..start();
-    AppSettings.i.liveDanmu.addListener(_onCfg);
+    AppSettings.i.danmu.addListener(_onCfg);
   }
 
   @override
@@ -73,7 +73,7 @@ class _LiveDanmuOverlayState extends State<LiveDanmuOverlay> with TickerProvider
   @override
   void dispose() {
     widget.incoming.removeListener(_onIncoming);
-    AppSettings.i.liveDanmu.removeListener(_onCfg);
+    AppSettings.i.danmu.removeListener(_onCfg);
     _ticker?.stop();
     super.dispose();
   }
@@ -81,7 +81,7 @@ class _LiveDanmuOverlayState extends State<LiveDanmuOverlay> with TickerProvider
   void _onCfg() {
     if (!mounted) return;
     setState(() {
-      if (!_cfg.enabled) _active.clear();
+      if (!_cfg.open) _active.clear();
       _resetLanes();
     });
   }
@@ -100,7 +100,7 @@ class _LiveDanmuOverlayState extends State<LiveDanmuOverlay> with TickerProvider
 
   void _onIncoming() {
     final cfg = _cfg;
-    if (!cfg.enabled || !mounted) return;
+    if (!cfg.open || !mounted) return;
     final batch = widget.incoming.value;
     if (batch.isEmpty) return;
     widget.incoming.value = []; // 消费掉，避免重复处理
@@ -152,14 +152,14 @@ class _LiveDanmuOverlayState extends State<LiveDanmuOverlay> with TickerProvider
       default: // platform：用平台下发颜色
         color = Color(m.color | 0xff000000);
     }
-    if (cfg.opacity < 1) {
-      color = color.withValues(alpha: cfg.opacity);
+    if (cfg.alpha < 1) {
+      color = color.withValues(alpha: cfg.alpha);
     }
 
     _active.add(_Active(
       text: text, color: color, start: _now, dur: dur, textW: textW,
       lane: chosen, fontSize: fontSize, bold: cfg.bold,
-      stroke: cfg.stroke, opacity: cfg.opacity,
+      stroke: cfg.stroke, opacity: cfg.alpha,
     ));
     _laneLastStart[chosen] = _now;
     _laneLastW[chosen] = textW;
@@ -198,7 +198,7 @@ class _LiveDanmuOverlayState extends State<LiveDanmuOverlay> with TickerProvider
 class _Painter extends CustomPainter {
   final List<_Active> active;
   final double now, W, H;
-  final LiveDanmuConfig cfg;
+  final DanmuConfig cfg;
   _Painter(this.active, this.now, this.W, this.H, this.cfg);
 
   @override

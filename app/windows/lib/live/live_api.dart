@@ -187,6 +187,16 @@ class LiveApi {
     return r['ok'] == true;
   }
 
+  /// 批量导入关注：data 可为列表或 {follows:[...]}，返回新增条数。
+  Future<int> followsImport(dynamic data) async {
+    final r = await Api.i.call('live_follows_import', {'data': data});
+    if (r['ok'] != true) throw Exception(r['error']?.toString() ?? '导入失败');
+    return r['imported'] as int? ?? 0;
+  }
+
+  /// 导出关注列表（{app,version,follows:[...]}）。
+  Future<Map<String, dynamic>> followsExport() => Api.i.call('live_follows_export');
+
   Future<Map<String, dynamic>> settingsGet() => Api.i.call('live_settings_get');
 
   Future<bool> settingsSet(Map<String, dynamic> settings) async {

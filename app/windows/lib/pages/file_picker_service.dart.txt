@@ -33,3 +33,19 @@ Future<Map<String, String>?> pickM3uFile() async {
   if (path == null) return null;
   return {'name': f.name, 'path': path};
 }
+
+/// 选择本地 JSON 关注列表，返回 {name, source}；用户取消返回 null。
+Future<Map<String, String>?> pickJsonFile() async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['json', 'txt'],
+    allowMultiple: false,
+    dialogTitle: '选择关注列表 (.json)',
+  );
+  if (result == null || result.files.isEmpty) return null;
+  final f = result.files.single;
+  final path = f.path;
+  if (path == null) return null;
+  final source = await File(path).readAsString();
+  return {'name': f.name, 'source': source};
+}

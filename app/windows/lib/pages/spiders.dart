@@ -1,21 +1,70 @@
 import 'package:flutter/material.dart';
 import '../app_core.dart';
 import 'file_picker_service.dart';
+import 'music/music_sources_page.dart';
 
-/// 源管理页：导入脚本（粘贴源码）、列表（启停/测试/删除），统一使用内嵌 QuickJS
+/// 源管理页：顶部切换「点播源 / 音源」。
+/// - 点播源：影视点播 QuickJS 脚本（spiders_*）
+/// - 音源：音乐播放链接解析脚本（music_source_*，对齐 lx-server 契约）
 class SpidersPage extends StatefulWidget {
   const SpidersPage({Key? key}) : super(key: key);
   @override
   State<SpidersPage> createState() => _SpidersPageState();
 }
 
-class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClientMixin {
+class _SpidersPageState extends State<SpidersPage>
+    with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  late final TabController _tab = TabController(length: 2, vsync: this);
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('源管理'),
+        bottom: TabBar(
+          controller: _tab,
+          tabs: const [
+            Tab(icon: Icon(Icons.movie_outlined), text: '点播源'),
+            Tab(icon: Icon(Icons.audiotrack_outlined), text: '音源'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tab,
+        children: const [
+          VodSourcesPane(),
+          MusicSourcesPane(),
+        ],
+      ),
+    );
+  }
+}
+
+/// 点播源面板：影视脚本（粘贴 / 本地文件 / URL），启停 / 测试 / 源码 / 删除。
+class VodSourcesPane extends StatefulWidget {
+  const VodSourcesPane({Key? key}) : super(key: key);
+  @override
+  State<VodSourcesPane> createState() => _VodSourcesPaneState();
+}
+
+class _VodSourcesPaneState extends State<VodSourcesPane>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   List<dynamic> _list = [];
   bool _loading = true;
   bool _busy = false;
-
-  @override
-  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -55,7 +104,6 @@ class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClient
     if (picked == null) return; // 用户取消
     final name = picked['name'] ?? 'spider.js';
     final source = picked['source'] ?? '';
-    // 复用粘贴导入逻辑（统一走内嵌 QuickJS）
     await _addPasted(name, source);
   }
 
@@ -66,9 +114,7 @@ class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClient
       return;
     }
     setState(() => _busy = true);
-    final r = await Api.i.call('spiders_add_url', {
-      'url': url.trim(),
-    });
+    final r = await Api.i.call('spiders_add_url', {'url': url.trim()});
     if (!mounted) return;
     setState(() => _busy = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -84,7 +130,7 @@ class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClient
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => Padding(
+      builder: (ctx) => Padding(
         padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: MediaQuery.of(ctx).viewInsets.bottom + 16),
         child: SingleChildScrollView(child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -107,7 +153,7 @@ class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClient
             )),
           ],
         )),
-      )),
+      ),
     );
   }
 
@@ -116,7 +162,7 @@ class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClient
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const ListTile(title: Text('导入脚本'), leading: Icon(Icons.input)),
+        const ListTile(title: Text('导入点播源'), leading: Icon(Icons.input)),
         ListTile(
           leading: const Icon(Icons.upload_file),
           title: const Text('从本地文件导入'),
@@ -145,18 +191,18 @@ class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClient
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => Padding(
+      builder: (ctx) => Padding(
         padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: MediaQuery.of(ctx).viewInsets.bottom + 16),
         child: SingleChildScrollView(child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('导入脚本', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('导入点播源脚本', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             TextField(controller: nameC, decoration: const InputDecoration(labelText: '文件名', border: OutlineInputBorder())),
             const SizedBox(height: 10),
             TextField(controller: srcC, maxLines: 8, decoration: const InputDecoration(
-              labelText: '粘贴 JS 源码（OmniBox 格式：module.exports = {home,category,search,detail,play}）',
+              labelText: 'JS 源码（OmniBox 格式：module.exports = {home,category,search,detail,play}）',
               border: OutlineInputBorder(),
             )),
             const SizedBox(height: 12),
@@ -169,7 +215,7 @@ class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClient
             )),
           ],
         )),
-      )),
+      ),
     );
   }
 
@@ -229,62 +275,64 @@ class _SpidersPageState extends State<SpidersPage> with AutomaticKeepAliveClient
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('源管理'),
-        actions: [IconButton(icon: const Icon(Icons.add), onPressed: _showImportMenu, tooltip: '导入脚本')],
-      ),
-      floatingActionButton: FloatingActionButton(onPressed: _showImportMenu, child: const Icon(Icons.add)),
-      body: Stack(children: [
-        _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _list.isEmpty
-                ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.source, size: 48, color: Colors.grey),
-                    SizedBox(height: 12),
-                    Text('尚未导入影视脚本'),
-                    SizedBox(height: 8),
-                    Text('点右下角 + 导入（文件 / URL / 粘贴）', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  ]))
-                : ListView.builder(
-                    itemCount: _list.length,
-                    itemBuilder: (_, i) {
-                      final s = _list[i] as Map<String, dynamic>;
-                      final enabled = s['enabled'] == true;
-                      final lastErr = s['last_error'];
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Row(children: [
-                              Expanded(child: Text(
-                                (s['display_name'] ?? s['name'] ?? s['id']).toString(),
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              )),
-                              Chip(label: const Text('QuickJS'),
-                                  backgroundColor: Colors.green.shade50),
-                              Chip(label: Text(enabled ? '启用' : '禁用'),
-                                  backgroundColor: enabled ? Colors.green.shade50 : Colors.grey.shade200),
-                            ]),
-                            const SizedBox(height: 4),
-                            Text('id: ${s['id']} · 来源: ${s['origin']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            if (lastErr != null)
-                              Text('错误: $lastErr', style: const TextStyle(fontSize: 12, color: Colors.orange)),
-                            const SizedBox(height: 8),
-                            Wrap(spacing: 6, children: [
-                              SmallBtn(label: enabled ? '禁用' : '启用', onTap: () => _toggle(s)),
-                              SmallBtn(label: '测试', onTap: () => _test(s)),
-                              SmallBtn(label: '源码', onTap: () => _viewSource(s)),
-                              SmallBtn(label: '删除', onTap: () => _remove(s), danger: true),
-                            ]),
+    return Stack(children: [
+      _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _list.isEmpty
+              ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.movie_outlined, size: 48, color: Colors.grey),
+                  const SizedBox(height: 12),
+                  const Text('尚未导入点播源'),
+                  const SizedBox(height: 8),
+                  const Text('点右下角 + 导入（文件 / URL / 粘贴）', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                ]))
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 80),
+                  itemCount: _list.length,
+                  itemBuilder: (_, i) {
+                    final s = _list[i] as Map<String, dynamic>;
+                    final enabled = s['enabled'] == true;
+                    final lastErr = s['last_error'];
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Expanded(child: Text(
+                              (s['display_name'] ?? s['name'] ?? s['id']).toString(),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            )),
+                            Chip(label: const Text('QuickJS'), backgroundColor: Colors.green.shade50),
+                            Chip(label: Text(enabled ? '启用' : '禁用'),
+                                backgroundColor: enabled ? Colors.green.shade50 : Colors.grey.shade200),
                           ]),
-                        ),
-                      );
-                    },
-                  ),
-        if (_busy) const Center(child: CircularProgressIndicator()),
-      ]),
-    );
+                          const SizedBox(height: 4),
+                          Text('id: ${s['id']} · 来源: ${s['origin']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          if (lastErr != null)
+                            Text('错误: $lastErr', style: const TextStyle(fontSize: 12, color: Colors.orange)),
+                          const SizedBox(height: 8),
+                          Wrap(spacing: 6, children: [
+                            SmallBtn(label: enabled ? '禁用' : '启用', onTap: () => _toggle(s)),
+                            SmallBtn(label: '测试', onTap: () => _test(s)),
+                            SmallBtn(label: '源码', onTap: () => _viewSource(s)),
+                            SmallBtn(label: '删除', onTap: () => _remove(s), danger: true),
+                          ]),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
+      Positioned(
+        right: 16,
+        bottom: 16,
+        child: FloatingActionButton(
+          onPressed: _showImportMenu,
+          tooltip: '导入点播源',
+          child: const Icon(Icons.add),
+        ),
+      ),
+      if (_busy) const Center(child: CircularProgressIndicator()),
+    ]);
   }
 }
 
@@ -300,9 +348,6 @@ class SmallBtn extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           minimumSize: const Size(0, 30),
         ),
-        child: Text(label, style: TextStyle(
-          fontSize: 12,
-          color: danger ? Colors.red : null,
-        )),
+        child: Text(label, style: TextStyle(fontSize: 12, color: danger ? Colors.red : null)),
       );
 }

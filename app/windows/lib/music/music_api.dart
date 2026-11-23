@@ -9,8 +9,9 @@ class MusicPlatform {
   static const all = [
     MusicPlatform('kw', '酷我'),
     MusicPlatform('kg', '酷狗'),
-    MusicPlatform('qq', 'QQ音乐'),
+    MusicPlatform('tx', 'QQ音乐'), // SDK 内部 key 为 tx（非 qq）
     MusicPlatform('wy', '网易云'),
+    MusicPlatform('mg', '咪咕'),
   ];
 }
 

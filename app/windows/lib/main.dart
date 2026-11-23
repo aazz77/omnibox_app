@@ -4,7 +4,6 @@ import 'package:media_kit/media_kit.dart';
 import 'app_core.dart';
 import 'settings.dart';
 import 'pages/home.dart';
-import 'pages/search.dart';
 import 'pages/spiders.dart';
 import 'pages/iptv.dart';
 import 'pages/live/live_tab_page.dart';
@@ -46,8 +45,8 @@ class OmniBoxApp extends StatelessWidget {
   }
 }
 
-/// 主壳：左侧导航 + 7 个页面（用 IndexedStack 保持各页状态）。
-/// 历史页 / 直播播放页为全屏 push，不在此导航内。
+/// 主壳：左侧导航 + 6 个页面（用 IndexedStack 保持各页状态）。
+/// 搜索页 / 历史页 / 直播播放页为全屏 push，不在此导航内。
 class MainShell extends StatefulWidget {
   final String dataDir;
   const MainShell({required this.dataDir, Key? key}) : super(key: key);
@@ -57,42 +56,30 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _tab = 0;
-  SearchPage _searchPage = SearchPage();
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
     _pages = [
-      const HomePage(),
-      _searchPage,
-      const SpidersPage(),
-      const IptvPage(),       // 原「直播」→ 现「iptv」（M3U 直播）
-      const LiveTabPage(),    // 新「直播」：6 平台聚合（关注 + 搜索）
+      const HomePage(),      // 点播（原「首页」，含历史 + 搜索入口）
+      const IptvPage(),      // iptv（M3U 直播）
+      const LiveTabPage(),   // 直播：6 平台聚合（关注 + 搜索）
       const MusicTabPage(),
+      const SpidersPage(),   // 源管理（点播源 / 音源）
       const SettingsPage(),
     ];
   }
 
-  /// 首页点卡片 -> 带关键词跳到搜索页并自动搜索
-  void openSearch(String query) {
-    setState(() {
-      _searchPage = SearchPage(initialQuery: query);
-      _pages[1] = _searchPage;
-      _tab = 1;
-    });
-  }
-
   static const _navItems = [
-    Icons.home,        // 首页（含历史入口）
-    Icons.search,
-    Icons.source,      // 源管理
-    Icons.live_tv,     // iptv（M3U 直播）
+    Icons.home,          // 点播（含历史 + 搜索入口）
+    Icons.live_tv,       // iptv（M3U 直播）
     Icons.subscriptions, // 直播（6 平台聚合，关注 + 搜索）
     Icons.music_note,
+    Icons.source,        // 源管理
     Icons.settings,
   ];
-  static const _navLabels = ['首页', '搜索', '源管理', 'iptv', '直播', '音乐', '设置'];
+  static const _navLabels = ['点播', 'iptv', '直播', '音乐', '源管理', '设置'];
 
   @override
   Widget build(BuildContext context) {

@@ -14,3 +14,9 @@ Future<Map<String, String>?> pickM3uFile() async {
   // 真正的实现见 file_picker_service.dart.txt（CI 中启用）。
   return null;
 }
+
+/// 选择本地 JSON 关注列表，返回 {name, source}；用户取消返回 null。
+Future<Map<String, String>?> pickJsonFile() async {
+  // 真正的实现见 file_picker_service.dart.txt（CI 中启用）。
+  return null;
+}

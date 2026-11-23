@@ -74,6 +74,9 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          // 搜索入口（原左侧导航「搜索」已移除，统一从这里全屏进入搜索页）
+          _buildSearchEntry(),
+          const SizedBox(height: 8),
           // 历史入口（历史页改为全屏 push，不再占导航）
           Card(
             child: ListTile(
@@ -95,6 +98,28 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
           _posterRow(_tv),
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+
+  /// 顶部搜索框：点击全屏 push 搜索页（搜索页已从左侧导航移除，入口收敛到这里）
+  Widget _buildSearchEntry() {
+    return InkWell(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => SearchPage(),
+      )),
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: const Row(children: [
+          Icon(Icons.search, color: Colors.grey, size: 20),
+          SizedBox(width: 10),
+          Text('搜索影视', style: TextStyle(color: Colors.grey, fontSize: 15)),
+        ]),
       ),
     );
   }
