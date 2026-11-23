@@ -47,6 +47,10 @@ regex = { version = "1", default-features = false, features = ["std", "unicode-p
 brotli = "9"
 flate2 = "1"
 
+# Android 目标 rquickjs-sys 未预置 bindings，需现场用 bindgen 生成（CI 的 ubuntu 自带 libclang，cargo-ndk 会注入 sysroot）
+[target.'cfg(target_os = "android")'.dependencies]
+rquickjs = { version = "0.14", features = ["bindgen"] }
+
 [profile.release]
 opt-level = 2
 strip = true
