@@ -28,7 +28,6 @@ jobs:
           add-to-path: true
 
       - uses: Swatinem/rust-cache@v2
-        working-directory: core
         with:
           key: musl-android-arm64
 
