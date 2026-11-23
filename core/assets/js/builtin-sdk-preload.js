@@ -415,7 +415,14 @@
           break
         }
         case 'getBoards':
-          promise = sdk[args.source].leaderboard.getBoards()
+          // 榜单卡片元素不带 source，补上后前端点击才能用正确平台拉榜内歌曲，
+          // 否则默认 kw 拿别平台 bangid 请求酷我接口 → 重试耗尽 try max num。
+          promise = sdk[args.source].leaderboard.getBoards().then((data) => {
+            if (data && Array.isArray(data.list)) {
+              data.list = data.list.map((b) => Object.assign({ source: args.source }, b))
+            }
+            return data
+          })
           break
         case 'boardList':
           promise = sdk[args.source].leaderboard.getList(args.id, args.page)

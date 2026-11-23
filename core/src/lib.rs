@@ -22,6 +22,8 @@ mod jscrypto;
 mod jsdom;
 mod live;
 mod live_server;
+mod iptv_yspl;
+mod yspl;
 mod music;
 mod music_crypto;
 mod music_engine;
@@ -293,6 +295,11 @@ pub extern "C" fn ob_call(method: *const c_char, params_json: *const c_char) -> 
                     Ok(v) => v,
                     Err(e) => json!({"ok": false, "error": e.to_string()}),
                 }
+            }
+
+            // ---- 内置央视频源（yspl 内嵌本地服务，127.0.0.1 随机端口）----
+            m if m.starts_with("iptv_yspl_") => {
+                rt.block_on(iptv_yspl::call(&method, &params))
             }
 
             _ => json!({"ok": false, "error": format!("未知方法: {method}")}),

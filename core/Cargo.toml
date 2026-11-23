@@ -2,7 +2,7 @@
 name = "omnibox_core"
 version = "0.1.0"
 edition = "2021"
-description = "OmniBox 桌面版纯 Rust 内核（单 crate cdylib，供 Flutter 通过 FFI 调用；含直播聚合内核 src/live_server；无 Node.js 运行时）"
+description = "OmniBox 桌面版纯 Rust 内核（单 crate cdylib，供 Flutter / Android JNI 调用；含直播聚合内核 src/live_server 与央视频源 src/yspl；无 Node.js 运行时）"
 
 [lib]
 name = "omnibox_core"
@@ -20,6 +20,7 @@ futures = "0.3"
 rquickjs = { version = "0.14", features = ["futures", "parallel", "macro"] }
 # 加密原语（替代 Node crypto）、DOM（替代 cheerio）
 aes = "0.8"
+aes-gcm = "0.10"
 cbc = { version = "0.1", features = ["alloc"] }
 ecb = { version = "0.1", features = ["alloc"] }
 md-5 = "0.10"
@@ -34,7 +35,7 @@ cipher = { version = "0.4", features = ["alloc", "block-padding"] }
 encoding_rs = "0.8"
 percent-encoding = "2"
 uuid = { version = "1", features = ["v4"] }
-# —— 以下原属 live_server 子 crate，现并入 ——
+# —— 原 live_server 子 crate ——
 async-trait = "0.1"
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 url = "2"
@@ -46,6 +47,10 @@ regex = { version = "1", default-features = false, features = ["std", "unicode-p
 # 与 reqwest 内部使用的 brotli 9 对齐，避免 7/9 两份
 brotli = "9"
 flate2 = "1"
+# —— 原 yspl 子 crate（内嵌本地 HTTP 服务）——
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "macros"] }
+parking_lot = "0.12"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # Android 目标 rquickjs-sys 未预置 bindings，需现场用 bindgen 生成（CI 的 ubuntu 自带 libclang，cargo-ndk 会注入 sysroot）
 [target.'cfg(target_os = "android")'.dependencies]
