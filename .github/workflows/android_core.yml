@@ -59,4 +59,4 @@ jobs:
         with:
           tag_name: core-latest
           prerelease: true
-          files: core/target/aarch64-linux-android/release/*
+          files: core/target/aarch64-linux-android/release/*.so
