@@ -1,11 +1,7 @@
-name: Build Win Core
+name: Build Windows Core
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, master]
-    paths:
-      - 'core/**'
 
 permissions:
   contents: write
@@ -43,16 +39,6 @@ jobs:
           if (-not (Test-Path $dll)) { throw "DLL 未生成: $dll" }
           $item = Get-Item $dll
           Write-Host "DLL: $($item.FullName)  Size: $([math]::Round($item.Length/1MB,2)) MB"
-
-      # 产物不提交进 git 源码仓库（二进制入库是坏习惯），而是发布到 Release，
-      # 供 build-flutter.yml 下载；同时存一份 Artifact 便于手动取用。
-      - name: Upload DLL artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: omnibox_core_dll
-          path: core/target/${{ env.TARGET }}/release/omnibox_core.dll
-          retention-days: 30
-          if-no-files-found: error
 
       # Release 作为跨 workflow 的中转站：固定 tag，重复构建覆盖同名资源。
       - name: "Publish DLL to Release (tag: core-latest)"
