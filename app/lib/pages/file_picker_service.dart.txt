@@ -1,0 +1,35 @@
+// 文件选择器服务（CI 构建时由 workflow 从本 .txt 覆盖到 file_picker_service.dart）。
+// 使用 file_picker 插件弹出系统原生文件对话框，选择本地 .js 脚本或 .m3u 播放列表。
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+
+/// 选择本地 JS 脚本文件，返回 {name, source}；用户取消返回 null。
+Future<Map<String, String>?> pickJsFile() async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['js'],
+    allowMultiple: false,
+    dialogTitle: '选择 OmniBox 脚本 (.js)',
+  );
+  if (result == null || result.files.isEmpty) return null;
+  final f = result.files.single;
+  final path = f.path;
+  if (path == null) return null;
+  final source = await File(path).readAsString();
+  return {'name': f.name, 'source': source};
+}
+
+/// 选择本地 M3U 播放列表，返回 {name, path}；用户取消返回 null。
+Future<Map<String, String>?> pickM3uFile() async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['m3u', 'm3u8', 'txt'],
+    allowMultiple: false,
+    dialogTitle: '选择 IPTV 播放列表 (.m3u/.m3u8)',
+  );
+  if (result == null || result.files.isEmpty) return null;
+  final f = result.files.single;
+  final path = f.path;
+  if (path == null) return null;
+  return {'name': f.name, 'path': path};
+}

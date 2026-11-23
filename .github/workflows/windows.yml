@@ -1,0 +1,123 @@
+name: Build Desktop
+
+on:
+  # 依赖 build-rust 成功后自动触发
+  workflow_run:
+    workflows: ["Build Rust Core"]
+    types: [completed]
+  # 也支持手动触发（需 core-latest Release 已存在）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # media_kit 需要 Flutter >= 3.7；这里用较新稳定版以启用真正的 mpv 播放器
+  FLUTTER_VERSION: '3.50.0'
+  DLL_NAME: omnibox_core.dll
+
+jobs:
+  build-app:
+    name: Build Omnibox.exe (windows-x64)
+    runs-on: windows-latest
+    # workflow_run 仅在 Rust 构建成功时继续；手动触发直接放行
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 检出触发本次运行的那个 commit，手动触发时回退到当前
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # 从 build-rust 发布的 Release 下载 DLL（跨 workflow 中转站）
+      - name: Download core DLL from Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/${{ github.repository }}/releases/download/core-latest/${{ env.DLL_NAME }}"
+          $headers = @{ Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
+          Write-Host "下载: $url"
+          Invoke-WebRequest -Uri $url -Headers $headers -OutFile ${{ env.DLL_NAME }}
+          $item = Get-Item ${{ env.DLL_NAME }}
+          Write-Host "DLL: $([math]::Round($item.Length/1MB,2)) MB"
+
+      # media_kit 依赖、mpv 播放器实现、MediaKit.ensureInitialized() 均已在源码中内置，
+      # 无需 CI 临时替换（Flutter 3.50.0 直接可编译）。
+
+      # 启用文件选择器：恢复真正的 file_picker 实现（本地仓库为无依赖 stub）。
+      - name: Enable file picker
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Copy-Item 'app/lib/pages/file_picker_service.dart.txt' `
+                    'app/lib/pages/file_picker_service.dart' -Force
+          Write-Host "file_picker 实现已启用"
+
+      # 添加 file_picker 依赖：让 pub 自动选择与 Flutter 3.24.5 兼容的版本。
+      - name: Add file_picker dependency
+        working-directory: app
+        # 10.3.x 需 Dart >=3.4，与 Flutter 3.24.5(Dart 3.5) 匹配；
+        # 固定大版本避免 pub 选到需 Dart 3.10 的 13.x 导致解析失败。
+        run: flutter pub add "file_picker:^10.3.0"
+
+      - name: Flutter pub get
+        working-directory: app
+        run: flutter pub get
+
+      - name: Build Windows release
+        working-directory: app
+        run: flutter build windows --release
+
+      # vlc_player 会在 Release 目录打包完整 VLC runtime（plugins/ ~130MB + locale 等）。
+      # 精简为 IPTV/本地播放所需插件，把体积压到 ~33MB。
+      - name: Strip unused VLC plugins
+        working-directory: app/windows
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts\strip_vlc_plugins.ps1
+
+      # 把 DLL 放到 Omnibox.exe 同目录（FFI defaultPath 从 exe 目录加载）
+      - name: Bundle DLL next to exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem -Path 'app/build/windows' -Filter 'Omnibox.exe' -Recurse |
+                 Select-Object -First 1
+          if (-not $exe) { throw "未找到 Omnibox.exe" }
+          $relDir = $exe.Directory.FullName
+          Copy-Item -Force ${{ env.DLL_NAME }} (Join-Path $relDir '${{ env.DLL_NAME }}')
+          Write-Host "Release 目录: $relDir"
+          Get-ChildItem $relDir | Select-Object Name, Length
+
+      - name: Package release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem -Path 'app/build/windows' -Filter 'Omnibox.exe' -Recurse |
+                 Select-Object -First 1
+          $relDir = $exe.Directory.FullName
+          Compress-Archive -Path (Join-Path $relDir '*') -DestinationPath 'omnibox-windows-x64.zip' -Force
+          $item = Get-Item 'omnibox-windows-x64.zip'
+          Write-Host "打包完成: $([math]::Round($item.Length/1MB,2)) MB"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnibox-windows-x64
+          path: omnibox-windows-x64.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: "Publish app to Release (tag: app-latest)"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-latest
+          prerelease: true
+          overwrite_files: true
+          files: omnibox-windows-x64.zip
