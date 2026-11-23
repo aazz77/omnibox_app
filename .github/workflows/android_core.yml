@@ -1,4 +1,4 @@
-name: Android ci
+name: Build Android Core
 
 on:
   workflow_dispatch:
@@ -56,11 +56,11 @@ jobs:
 
       - run: |
           mkdir -p dist
-          cp core/target/aarch64-linux-android/release/omnibox_core dist/omnibox_core.so
+          cp core/target/aarch64-linux-android/release/omnibox_core dist/libomnibox_core.so
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: core-latest
           prerelease: true
-          files: dist/omnibox_core-*
+          files: dist/libomnibox_core.so
