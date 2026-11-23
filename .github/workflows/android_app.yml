@@ -1,4 +1,4 @@
-name: Build Android App
+name: Build Android
 
 on:
   # 依赖 Build Android Core 成功后自动触发
